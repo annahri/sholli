@@ -4,7 +4,7 @@
 readonly base_url="https://bimasislam.kemenag.go.id"
 
 # App Info
-readonly app_version="0.3"
+readonly app_version="0.3.1"
 readonly app_name="sholli"
 readonly app_title="${app_name^} v${app_version}"
 
@@ -16,6 +16,9 @@ readonly config_file="${root_dir}/config"
 
 usage() {
     printf '%s\n' \
+        "░█▀▀░█░█░█▀█░█░░░█░░░▀█▀" \
+        "░▀▀█░█▀█░█░█░█░░░█░░░░█░" \
+        "░▀▀▀░▀░▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀" \
         "${app_name} - Tool CLI pengingat waktu sholat berdasarkan perhitungan KEMENAG RI" \
         "Usage: ${app_name} SUBCOMMAND [OPTIONS]" \
         "" \
@@ -81,6 +84,32 @@ get_cookie() {
     [[ -s "$cookie_file" ]] && echo "$cookie_file"
 }
 
+anykey() {
+    read -n1 -rp "$@"
+    printf '\n'
+}
+
+yesno() {
+    local str="$1"
+    while read -n1 -rp "${str} [y/N] ? "; do
+        case "$REPLY" in
+            Y|y) return 1 ;;
+            N|n|"") return 0 ;;
+        esac
+    done
+}
+
+yesno_true() {
+    local str="$1"
+    while read -n1 -rp "${str} [y/N] ? "; do
+        case "$REPLY" in
+            Y|y) printf '%s\n' "true";  echo >&2; break ;;
+            N|n) printf '%s\n' "false"; echo >&2; break ;;
+            "")  printf '%s\n' "false"; break ;;
+        esac
+    done
+}
+
 choose_option() {
     local str="$1"
     local data="$2"
@@ -123,32 +152,6 @@ choose_option() {
     fi
 
     printf '%s\n' "${result[0]}"
-}
-
-anykey() {
-    read -n1 -rp "$@"
-    printf '\n'
-}
-
-yesno() {
-    local str="$1"
-    while read -n1 -rp "${str} [y/N] ? "; do
-        case "$REPLY" in
-            Y|y) return 1 ;;
-            N|n|"") return 0 ;;
-        esac
-    done
-}
-
-yesno_true() {
-    local str="$1"
-    while read -n1 -rp "${str} [y/N] ? "; do
-        case "$REPLY" in
-            Y|y) printf '%s\n' "true";  echo >&2; break ;;
-            N|n) printf '%s\n' "false"; echo >&2; break ;;
-            "")  printf '%s\n' "false"; break ;;
-        esac
-    done
 }
 
 init() {
@@ -272,9 +275,12 @@ check_time() {
 
     # Reminder
     for m in "${reminders[@]}"; do
+        case "${next_event,,}" in (imsak|terbit|dhuha) continue ;; esac
+
         secs=$(( m * 60 ))
         reminding_time=$(( next_epoch - secs ))
         reminding_time=$(date -d @"$reminding_time" +%k:%M)
+
         if [[ $(date +%k:%M) == "$reminding_time" ]]; then
             notify "Memasuki waktu ${next_event} dalam ${m} menit. ${next_event}: ${next_time}"
             play_notification "$next_event" "$m"
@@ -283,6 +289,13 @@ check_time() {
 
     # If it's the time, then play adzan
     if [[ $(date +%k:%M) == "$next_time" ]]; then
+        case "${next_event,,}" in
+            imsak|terbit|dhuha) 
+                notify "Memasuki waktu ${next_event}"
+                return
+                ;;
+        esac
+
         notify "Waktunya sholat ${next_event}"
         play_adzan
         rm "$time_keeper"
@@ -293,15 +306,19 @@ check_time() {
     # Otherwise,
     # Prints the next event time
     else
-        case "${next_event,,}" in
-            imsak|terbit|dhuha) return ;;
-        esac
-
         delta=$(time_delta "$next_epoch")
         rem_hours=$(( delta / 3600 ))
         rem_minutes=$(( (delta % 3600) / 60 ))
 
-        printf 'Waktu sholat selanjutnya: %s @%s\n' "${next_event^^}" "$next_time"
+        case "${next_event,,}" in
+            imsak|terbit|dhuha)
+                printf 'Waktu %s hari ini pada: %s\n' "${next_event^}" "$next_time"
+                ;;
+            *)
+                printf 'Waktu sholat selanjutnya: %s @%s\n' "${next_event^^}" "$next_time"
+                ;;
+        esac
+
         printf 'dalam %d jam %d menit lagi.\n' "$rem_hours" "$rem_minutes"
     fi
 }
