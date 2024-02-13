@@ -16,9 +16,11 @@ readonly config_file="${root_dir}/config"
 
 usage() {
     printf '%s\n' \
-        "░█▀▀░█░█░█▀█░█░░░█░░░▀█▀" \
-        "░▀▀█░█▀█░█░█░█░░░█░░░░█░" \
-        "░▀▀▀░▀░▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀" \
+        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░█▀▀░█░█░█▀█░█░░░█░░░▀█▀░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░▀▀█░█▀█░█░█░█░░░█░░░░█░░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░▀▀▀░▀░▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" \
         "${app_name} - Tool CLI pengingat waktu sholat berdasarkan perhitungan KEMENAG RI" \
         "Usage: ${app_name} SUBCOMMAND [OPTIONS]" \
         "" \
@@ -271,7 +273,9 @@ check_time() {
         next_epoch="$(head -1 "$time_keeper")"
         next_event="$(tail -1 "$time_keeper")"
     fi
+
     next_time=$(date -d @"$next_epoch" +%k:%M)
+    delta=$(time_delta "$next_epoch")
 
     # Reminder
     for m in "${reminders[@]}"; do
@@ -292,21 +296,26 @@ check_time() {
         case "${next_event,,}" in
             imsak|terbit|dhuha) 
                 notify "Memasuki waktu ${next_event}"
+                printf 'Memasuki waktu %s\n' "$next_event" 
+                rm -f "$time_keeper"
                 return
                 ;;
         esac
 
+        printf 'Waktunya sholat %s\n' "$next_event"
         notify "Waktunya sholat ${next_event}"
         play_adzan
-        rm "$time_keeper"
+        rm -f "$time_keeper"
     # Otherwise,
     # If next event is empty, means today's event has already been all passed
     elif [[ -z "$next_event" ]]; then
         check_time "$(date -d "$cur_date + 1 day" +%Y-%m-%d)"
     # Otherwise,
     # Prints the next event time
+    elif [[ "$delta" -lt 0 ]]; then
+        rm -f "$time_keeper"
+        check_time
     else
-        delta=$(time_delta "$next_epoch")
         rem_hours=$(( delta / 3600 ))
         rem_minutes=$(( (delta % 3600) / 60 ))
 
@@ -329,6 +338,7 @@ main() {
 
     [[ -z "$cmd" ]] && usage
     case "$cmd" in
+        adzan) play_adzan ;;
         init) init ;;
         cek) check_time ;;
         clean) clean ;;
