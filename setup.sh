@@ -5,8 +5,8 @@ mkdir -p ~/.local/share/sholli
 git clone -b setup https://github.com/annahri/sholli.git ~/.local/share/sholli
 
 for path in ~/.bin ~/.local/bin; do
-    test -d "$path" || continue
     grep -q "$path" <<< "$PATH" || continue
+    test -d "$path" || mkdir "$path"
 
     echo "Menginstal sholli.sh pada $path"
     curl -Sso "${path}/sholli" "https://raw.githubusercontent.com/annahri/sholli/main/sholli"
