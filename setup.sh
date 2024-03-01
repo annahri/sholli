@@ -4,13 +4,18 @@ echo "Mengunduh file adzan..."
 mkdir -p ~/.local/share/sholli
 git clone -b setup https://github.com/annahri/sholli.git ~/.local/share/sholli
 
-echo "Menginstal sholli.sh..."
 for path in ~/.bin ~/.local/bin; do
     test -d "$path" || continue
+    grep -q "$path" <<< "$PATH" || continue
 
+    echo "Menginstal sholli.sh pada $path"
     curl -Sso "${path}/sholli" "https://raw.githubusercontent.com/annahri/sholli/main/sholli"
     chmod +x "${path}/sholli"
-    break
+
+    echo "Selesai"
+    exit
 done
 
-echo "Selesai"
+echo "Silakan unduh sholli.sh secara manual:"
+echo "  curl -Ss https://raw.githubusercontent.com/annahri/sholli/main/setup.sh"
+echo "dan letakkan pada \$PATH."
