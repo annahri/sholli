@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e errexit
+
 echo "Mengunduh file adzan..."
 mkdir -p ~/.local/share/sholli
 git clone -b setup https://github.com/annahri/sholli.git ~/.local/share/sholli
