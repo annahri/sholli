@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 # Urls
 readonly base_url="https://bimasislam.kemenag.go.id"
 
@@ -39,10 +41,14 @@ usage() {
 
 notify() { notify-send "$@" "$app_title"; }
 
+dirhash() {
+    readlink -f "$1" | sha1sum | awk '{print $1}' | rev | cut -c1-6 | rev
+}
+
 play_adzan() { 
     adzan="default.mp3"
     adzan_file="${adzan_dir}/${adzan}"
-    lock_file="/tmp/${app_name}_adzan"
+    lock_file="/tmp/${app_name}-$(dirhash "$0")_adzan"
 
     if [[ -f "$lock_file" ]]; then
         printf '%s\n' "Adzan sedang berlangsung." >&2
@@ -105,9 +111,9 @@ yesno_true() {
     local str="$1"
     while read -n1 -rp "${str} [y/N] ? "; do
         case "$REPLY" in
-            Y|y) printf '%s\n' "true";  echo >&2; break ;;
+            Y|y) printf '%s\n'  "true"; echo >&2; break ;;
             N|n) printf '%s\n' "false"; echo >&2; break ;;
-            "")  printf '%s\n' "false"; break ;;
+             "") printf '%s\n' "false";           break ;;
         esac
     done
 }
@@ -162,19 +168,20 @@ init() {
     fi
 
     printf '%s\n' \
-        "" \
-        "  ░█▀▀░█░█░█▀█░█░░░█░░░▀█▀" \
-        "  ░▀▀█░█▀█░█░█░█░░░█░░░░█░" \
-        "  ░▀▀▀░▀░▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀" \
-        "" \
+        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░█▀▀░█░█░█▀█░█░░░█░░░▀█▀░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░▀▀█░█▀█░█░█░█░░░█░░░░█░░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░▀▀▀░▀░▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀░░░░░░░░░░░░" \
+        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░" \
         "Menginisiasi file konfigurasi." \
-        "Silakan jawab pertanyaan yang muncul:" \
-        "[Enter]"
+        "Silakan jawab pertanyaan yang muncul: [Enter]"
+
     anykey ""
 
     mkdir -p "$adzan_dir"
     mkdir -p "$meta_dir"
 
+    printf '%s\n' "Mengambil jadwal sholat..."
     cookie=$(get_cookie)
     data_prov=$(curl -Ss -b "$cookie" "${base_url}/jadwalshalat" | pup 'select[id="search_prov"]')
     prov_id="$(choose_option "provinsi" "$data_prov")"
@@ -227,7 +234,7 @@ update_jadwal() {
     clean
 }
 
-clean() {  rm "/tmp/${app_name}_"*; }
+clean() {  rm "/tmp/${app_name}-"*; }
 
 check_time() {
     local bulan tahun data_file cur_date
@@ -236,7 +243,7 @@ check_time() {
     load_config
 
     cur_date=${1:-$(date +%Y-%m-%d)}
-    time_keeper="/tmp/${app_name}_next"
+    time_keeper="/tmp/${app_name}-$(dirhash "$0")_next"
     readarray -d ' ' -t reminders <<< "$pengingat"
 
     month=$(date -d "$cur_date" +%m)
@@ -259,14 +266,22 @@ check_time() {
             [[ $delta -lt 0 ]] && continue
 
             # Find the smallest delta to get the next nearest event
-            if [[ $delta -lt $min_delta ]]; then
+            if [[ $delta -lt 0 ]]; then
+                :
+            elif [[ $delta -lt $min_delta ]]; then
                 min_delta="$delta"
                 next_event="$key"
                 next_epoch="$target_time"
             fi
         done
 
-        if [[ "$next_epoch" && "$next_event" ]]; then
+        printf '%s:\t%s\n' "Min Delta" "$min_delta" \
+            "Next_event" "$next_event" \
+            "Next_epoch" "$next_epoch" \
+            "Delta" "$delta" \
+            "Time keys" "$time_keys"
+
+        if [[ "${next_epoch:-}" && "${next_event:-}" ]]; then
             printf '%s\n' "$next_epoch" "$next_event" > "$time_keeper"
         fi
     else
@@ -274,7 +289,7 @@ check_time() {
         next_event="$(tail -1 "$time_keeper")"
     fi
 
-    next_time=$(date -d @"$next_epoch" +%k:%M)
+    next_time=$(date -d @"$next_epoch" +%k:%M 2> /dev/null || true)
     delta=$(time_delta "$next_epoch")
 
     # Reminder
@@ -283,7 +298,7 @@ check_time() {
 
         secs=$(( m * 60 ))
         reminding_time=$(( next_epoch - secs ))
-        reminding_time=$(date -d @"$reminding_time" +%k:%M)
+        reminding_time=$(date -d @"$reminding_time" +%k:%M 2> /dev/null || true)
 
         if [[ $(date +%k:%M) == "$reminding_time" ]]; then
             notify "Memasuki waktu ${next_event} dalam ${m} menit. ${next_event}: ${next_time}"
@@ -291,6 +306,12 @@ check_time() {
         fi
     done
 
+    # If next event is empty, means today's event has already been all passed
+    if [[ -z "$next_event" ]]; then
+        check_time "$(date -d "$cur_date + 1 day" +%Y-%m-%d)"
+        exit
+    fi
+    # Otherwise,
     # If it's the time, then play adzan
     if [[ $(date +%k:%M) == "$next_time" ]]; then
         case "${next_event,,}" in
@@ -307,14 +328,11 @@ check_time() {
         play_adzan
         rm -f "$time_keeper"
     # Otherwise,
-    # If next event is empty, means today's event has already been all passed
-    elif [[ -z "$next_event" ]]; then
-        check_time "$(date -d "$cur_date + 1 day" +%Y-%m-%d)"
-    # Otherwise,
     # Prints the next event time
-    elif [[ "$delta" -lt 0 ]]; then
-        rm -f "$time_keeper"
-        check_time
+    #elif [[ "$delta" -lt 0 ]]; then
+    #    check_time "$(date -d "$cur_date + 1 day" +%Y-%m-%d)"
+    #    rm -f "$time_keeper"
+    #    check_time
     else
         rem_hours=$(( delta / 3600 ))
         rem_minutes=$(( (delta % 3600) / 60 ))
@@ -338,12 +356,12 @@ main() {
 
     [[ -z "$cmd" ]] && usage
     case "$cmd" in
-        adzan) play_adzan ;;
-        init) init ;;
-        cek) check_time ;;
-        clean) clean ;;
+         adzan) play_adzan         ;;
+          init) init               ;;
+           cek) check_time         ;;
+         clean) clean              ;;
         update) update_jadwal "$@" ;;
-        *) usage ;;
+             *) usage              ;;
     esac
 }
 
