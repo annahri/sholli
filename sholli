@@ -311,6 +311,7 @@ check_time() {
         check_time "$(date -d "$cur_date + 1 day" +%Y-%m-%d)"
         exit
     fi
+
     # Otherwise,
     # If it's the time, then play adzan
     if [[ $(date +%k:%M) == "$next_time" ]]; then
@@ -329,10 +330,9 @@ check_time() {
         rm -f "$time_keeper"
     # Otherwise,
     # Prints the next event time
-    #elif [[ "$delta" -lt 0 ]]; then
-    #    check_time "$(date -d "$cur_date + 1 day" +%Y-%m-%d)"
-    #    rm -f "$time_keeper"
-    #    check_time
+    elif [[ "$delta" -lt 0 ]]; then
+        rm -f "$time_keeper"
+        check_time
     else
         rem_hours=$(( delta / 3600 ))
         rem_minutes=$(( (delta % 3600) / 60 ))
