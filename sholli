@@ -236,6 +236,14 @@ update_jadwal() {
 
 clean() {  rm "/tmp/${app_name}-"*; }
 
+debugvars() {
+    printf '%s:\t%s\n' "Min Delta" "$min_delta" \
+        "Next_event" "$next_event" \
+        "Next_epoch" "$next_epoch" \
+        "Delta" "$delta" \
+        "Time keys" "$time_keys"
+}
+
 check_time() {
     local bulan tahun data_file cur_date
     local next_event next_time reminders time_keeper
@@ -274,12 +282,6 @@ check_time() {
                 next_epoch="$target_time"
             fi
         done
-
-        printf '%s:\t%s\n' "Min Delta" "$min_delta" \
-            "Next_event" "$next_event" \
-            "Next_epoch" "$next_epoch" \
-            "Delta" "$delta" \
-            "Time keys" "$time_keys"
 
         if [[ "${next_epoch:-}" && "${next_event:-}" ]]; then
             printf '%s\n' "$next_epoch" "$next_event" > "$time_keeper"
